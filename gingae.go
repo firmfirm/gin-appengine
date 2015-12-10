@@ -1,6 +1,8 @@
 package gingae
 
 import (
+	"runtime"
+
 	"github.com/gin-gonic/gin"
 
 	"appengine"
@@ -28,7 +30,15 @@ func GaeToGinHandler(handler GaeHandlerFunc) gin.HandlerFunc {
 // GaeErrorLogger adds GAE error/warning logger.
 // If there were any errors, will:
 // Calls `Warningf` if returned status code is < 500, otherwise `Errorf`
+// `Criticalf`, if there was a panic
 var GaeErrorLogger = GaeToGinHandler(func(c *gin.Context, gae appengine.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			stack := make([]byte, 1<<16)
+			runtime.Stack(stack, true)
+			gae.Criticalf("%s\nStacktrace:%s\n", err, stack)
+		}
+	}()
 	c.Next()
 	for _, err := range c.Errors {
 		msg := err.Error()
