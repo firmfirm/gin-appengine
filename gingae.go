@@ -1,6 +1,7 @@
 package gingae
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 
@@ -32,17 +33,20 @@ func GaeToGinHandler(handler GaeHandlerFunc) gin.HandlerFunc {
 // If there were any errors, will:
 // Calls `Warningf` if returned status code is < 500, otherwise `Errorf`
 var GaeErrorLogger = GaeToGinHandler(func(c *gin.Context, gae appengine.Context) {
+	defer func() {
+		if err := recover(); err != nil {
+			c.AbortWithError(500, errors.New("Shouldn't happen. See GAE log."))
+		}
+	}()
 	c.Next()
 	for _, err := range c.Errors {
 		msg := err.Error()
 		if c.Writer.Status() < 500 {
 			gae.Warningf(msg)
 		} else {
-			if gin.Mode() == gin.DebugMode {
-				stack := make([]byte, 1<<16)
-				runtime.Stack(stack, true)
-				msg = fmt.Sprintf("%s\nStacktrace:%s\n", err, stack)
-			}
+			stack := make([]byte, 1<<16)
+			runtime.Stack(stack, true)
+			msg = fmt.Sprintf("%s\nStacktrace:%s\n", err, stack)
 			gae.Errorf(msg)
 		}
 	}
