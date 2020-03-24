@@ -2,6 +2,9 @@ package gingae
 
 import (
 	"errors"
+	"fmt"
+	"log"
+	"os"
 	"runtime"
 
 	"golang.org/x/net/context"
@@ -9,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"google.golang.org/appengine"
-	"google.golang.org/appengine/log"
 )
 
 // KeyGaeContext is a key of context.Context object in gin.Context
@@ -36,11 +38,12 @@ func GaeToGinHandler(handler GaeHandlerFunc) gin.HandlerFunc {
 // Calls `Warningf` if returned status code is < 500, otherwise `Errorf`
 // Criticalf on panic
 var GaeErrorLogger = GaeToGinHandler(func(c *gin.Context, gae context.Context) {
+	errLogger := log.New(os.Stderr, "", 0)
 	defer func() {
 		if err := recover(); err != nil {
 			stack := make([]byte, 1<<16)
 			runtime.Stack(stack, true)
-			log.Criticalf(gae, "%s\nStacktrace:%s\n", err, stack)
+			fmt.Fprintf(os.Stderr, "%s\nStacktrace:%s\n", err, stack)
 			c.AbortWithError(500, errors.New("Shouldn't happen - see GAE log"))
 		}
 	}()
@@ -48,9 +51,9 @@ var GaeErrorLogger = GaeToGinHandler(func(c *gin.Context, gae context.Context) {
 	for _, err := range c.Errors {
 		msg := err.Error()
 		if c.Writer.Status() < 500 {
-			log.Warningf(gae, msg)
+			log.Printf(msg)
 		} else {
-			log.Errorf(gae, msg)
+			errLogger.Printf(msg)
 		}
 	}
 })
